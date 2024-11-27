@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.fft import fft2, ifft2
+from multiprocessing import Pool
+from functools import partial
 
 
 def filter_bank(M, N, J, L=8):
@@ -26,21 +28,26 @@ def filter_bank(M, N, J, L=8):
         The design of the filters is optimized for the value L = 8.
     """
     filters = {}
-    filters['psi'] = []
+    # filters['psi'] = []
+    #
+    # for j in range(J):
+    #     for theta in range(L):
+    #         psi = {'levels': [], 'j': j, 'theta': theta}
+    #         psi_signal = morlet_2d(M, N, 0.8 * 2**j,
+    #             (int(L-L/2-1)-theta) * np.pi / L,
+    #             3.0 / 4.0 * np.pi /2**j, 4.0/L)
+    #         psi_signal_fourier = np.real(fft2(psi_signal))
+    #         # drop the imaginary part, it is zero anyway
+    #         psi_levels = []
+    #         filters['psi'].append(psi)
+    #         for res in range(min(j + 1, max(J - 1, 1))):
+    #             psi_levels.append(periodize_filter_fft(psi_signal_fourier, res))
+    #         psi['levels'] = psi_levels
 
-    for j in range(J):
-        for theta in range(L):
-            psi = {'levels': [], 'j': j, 'theta': theta}
-            psi_signal = morlet_2d(M, N, 0.8 * 2**j,
-                (int(L-L/2-1)-theta) * np.pi / L,
-                3.0 / 4.0 * np.pi /2**j, 4.0/L)
-            psi_signal_fourier = np.real(fft2(psi_signal))
-            # drop the imaginary part, it is zero anyway
-            psi_levels = []
-            for res in range(min(j + 1, max(J - 1, 1))):
-                psi_levels.append(periodize_filter_fft(psi_signal_fourier, res))
-            psi['levels'] = psi_levels
-            filters['psi'].append(psi)
+    tasks = [(j, theta) for j in range(J) for theta in range(L)]
+    build_iter = partial(_filter_psi, M=M, N=N, J=J, L=L)
+    with Pool() as pool:
+        filters['psi'] = pool.map(build_iter, tasks)
 
     phi_signal = gabor_2d(M, N, 0.8 * 2**(J-1), 0, 0)
     phi_signal_fourier = np.real(fft2(phi_signal))
@@ -51,6 +58,21 @@ def filter_bank(M, N, J, L=8):
             periodize_filter_fft(phi_signal_fourier, res))
 
     return filters
+
+
+def _filter_psi(task, M, N, J, L):
+    j, theta = task
+    psi = {'levels': [], 'j': j, 'theta': theta}
+    psi_signal = morlet_2d(M, N, 0.8 * 2**j,
+                           (int(L-L/2-1)-theta) * np.pi / L,
+                           3.0 / 4.0 * np.pi / 2**j, 4.0/L)
+    psi_signal_fourier = np.real(fft2(psi_signal))
+    # drop the imaginary part, it is zero anyway
+    psi_levels = []
+    for res in range(min(j + 1, max(J - 1, 1))):
+        psi_levels.append(periodize_filter_fft(psi_signal_fourier, res))
+    psi['levels'] = psi_levels
+    return psi
 
 
 def periodize_filter_fft(x, res):
@@ -71,8 +93,6 @@ def periodize_filter_fft(x, res):
     M = x.shape[0]
     N = x.shape[1]
 
-    crop = np.zeros((M // 2 ** res, N // 2 ** res), x.dtype)
-
     mask = np.ones(x.shape, np.float32)
     len_x = int(M * (1 - 2 ** (-res)))
     start_x = int(M * 2 ** (-res - 1))
@@ -82,13 +102,29 @@ def periodize_filter_fft(x, res):
     mask[:, start_y:start_y + len_y] = 0
     x = np.multiply(x,mask)
 
+    crop = np.zeros((M // 2 ** res, N // 2 ** res), x.dtype)
     for k in range(int(M / 2 ** res)):
         for l in range(int(N / 2 ** res)):
             for i in range(int(2 ** res)):
                 for j in range(int(2 ** res)):
                     crop[k, l] += x[k + i * int(M / 2 ** res), l + j * int(N / 2 ** res)]
 
+    # range_k = range(int(M / 2 ** res))
+    # range_l = range(int(N / 2 ** res))
+    # range_i = range(int(2 ** res))
+    # range_j = range(int(2 ** res))
+    # tasks = [(k, l, i, j) for k in range_k for l in range_l for i in range_i for j in range_j]
+    # build_iter = partial(_crop, x=x, res=res, M=M, N=N)
+    # with Pool() as pool:
+    #     crop = pool.map(build_iter, tasks)
+    # crop = np.reshape(crop, (len(range_k), len(range_l), len(range_i), len(range_j))).sum(axis=3).sum(axis=2)
+
     return crop
+
+
+# def _crop(task, x, res, M, N):
+#     k, l, i, j = task
+#     return x[k + i * int(M / 2 ** res), l + j * int(N / 2 ** res)]
 
 
 def morlet_2d(M, N, sigma, theta, xi, slant=0.5, offset=0):
