@@ -1,7 +1,7 @@
 __all__ = ['solid_harmonic_filter_bank']
 
 import numpy as np
-from scipy.special import sph_harm, factorial
+from scipy.special import sph_harm_y, factorial
 from .utils import get_3d_angles, double_factorial, sqrt
 
 
@@ -22,7 +22,7 @@ def solid_harmonic_filter_bank(M, N, O, J, L, sigma_0, fourier=True):
             width parameter of mother solid harmonic wavelet
         fourier : boolean
             if true, wavelets are computed in Fourier space
-	    if false, wavelets are computed in signal space
+            if false, wavelets are computed in signal space
 
         Returns
         -------
@@ -35,7 +35,7 @@ def solid_harmonic_filter_bank(M, N, O, J, L, sigma_0, fourier=True):
         filters_l = np.zeros((J + 1, 2 * l + 1, M, N, O), dtype='complex64')
         for j in range(J+1):
             sigma = sigma_0 * 2 ** j
-            filters_l[j,...] = solid_harmonic_3d(M, N, O, sigma, l, fourier=fourier)
+            filters_l[j, ...] = solid_harmonic_3d(M, N, O, sigma, l, fourier=fourier)
         filters.append(filters_l)
     return filters
 
@@ -54,7 +54,7 @@ def gaussian_filter_bank(M, N, O, J, sigma_0, fourier=True):
             width parameter of father Gaussian filter
         fourier : boolean
             if true, wavelets are computed in Fourier space
-	    if false, wavelets are computed in signal space
+            if false, wavelets are computed in signal space
 
         Returns
         -------
@@ -81,7 +81,7 @@ def gaussian_3d(M, N, O, sigma, fourier=True):
             gaussian width parameter
         fourier : boolean
             if true, the Gaussian if computed in Fourier space
-	    if false, the Gaussian if computed in signal space
+            if false, the Gaussian if computed in signal space
 
         Returns
         -------
@@ -93,7 +93,7 @@ def gaussian_3d(M, N, O, sigma, fourier=True):
         np.mgrid[-M // 2:-M // 2 + M,
                  -N // 2:-N // 2 + N,
                  -O // 2:-O // 2 + O].astype('float32'),
-        axes=(1,2,3))
+        axes=(1, 2, 3))
     _sigma = sigma
     if fourier:
         grid[0] *= 2 * np.pi / M
@@ -111,10 +111,10 @@ def gaussian_3d(M, N, O, sigma, fourier=True):
 def solid_harmonic_3d(M, N, O, sigma, l, fourier=True):
     """
         Computes a set of 3D Solid Harmonic Wavelets.
-	A solid harmonic wavelet has two integer orders l >= 0 and -l <= m <= l
-	In spherical coordinates (r, theta, phi), a solid harmonic wavelet is
-	the product of a polynomial Gaussian r^l exp(-0.5 r^2 / sigma^2)
-	with a spherical harmonic function Y_{l,m} (theta, phi).
+        A solid harmonic wavelet has two integer orders l >= 0 and -l <= m <= l
+        In spherical coordinates (r, theta, phi), a solid harmonic wavelet is
+        the product of a polynomial Gaussian r^l exp(-0.5 r^2 / sigma^2)
+        with a spherical harmonic function Y_{l,m} (theta, phi).
 
         Parameters
         ----------
@@ -126,7 +126,7 @@ def solid_harmonic_3d(M, N, O, sigma, l, fourier=True):
             first integer order of the wavelets
         fourier : boolean
             if true, wavelets are computed in Fourier space
-	    if false, wavelets are computed in signal space
+            if false, wavelets are computed in signal space
 
         Returns
         -------
@@ -140,7 +140,7 @@ def solid_harmonic_3d(M, N, O, sigma, l, fourier=True):
         np.mgrid[-M // 2:-M // 2 + M,
                  -N // 2:-N // 2 + N,
                  -O // 2:-O // 2 + O].astype('float32'),
-        axes=(1,2,3))
+        axes=(1, 2, 3))
     _sigma = sigma
 
     if fourier:
@@ -157,21 +157,21 @@ def solid_harmonic_3d(M, N, O, sigma, l, fourier=True):
         if fourier:
             return gaussian.reshape((1, M, N, O))
         return gaussian.reshape((1, M, N, O)) / (
-                                          (2 * np.pi) ** 1.5 * _sigma ** 3)
+            (2 * np.pi) ** 1.5 * _sigma ** 3)
 
     polynomial_gaussian = r_power_l * gaussian / _sigma ** l
 
     polar, azimuthal = get_3d_angles(grid)
 
     for i_m, m in enumerate(range(-l, l + 1)):
-        solid_harm[i_m] = sph_harm(m, l, azimuthal, polar) * polynomial_gaussian
+        solid_harm[i_m] = sph_harm_y(m, l, azimuthal, polar) * polynomial_gaussian
 
     if l % 2 == 0:
-        norm_factor = 1. / (2 * np.pi * np.sqrt(l + 0.5) * 
-                                            double_factorial(l + 1))
-    else :
-        norm_factor = 1. / (2 ** (0.5 * ( l + 3)) * 
-                            np.sqrt(np.pi * (2 * l + 1)) * 
+        norm_factor = 1. / (2 * np.pi * np.sqrt(l + 0.5) *
+                            double_factorial(l + 1))
+    else:
+        norm_factor = 1. / (2 ** (0.5 * (l + 3)) *
+                            np.sqrt(np.pi * (2 * l + 1)) *
                             factorial((l + 1) / 2))
 
     if fourier:
