@@ -74,7 +74,10 @@ def get_dataset_dir(dataset_name, datasets_base_dir=None, create=True):
 def _download(url, filename):
 
     try:
-        f = urlopen(url)
+        import ssl
+        import certifi
+        context = ssl.create_default_context(cafile=certifi.where())
+        f = urlopen(url, context=context)
         with open(filename, 'wb') as local_file:
             local_file.write(f.read())
     except URLError as e:
